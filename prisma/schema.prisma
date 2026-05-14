@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admins")
+}
+
+model Location {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  qrCodeUrl String?   @map("qr_code_url")
+  createdAt DateTime  @default(now()) @map("created_at")
+  messages  Message[]
+
+  @@map("locations")
+}
+
+model Message {
+  id         String     @id @default(uuid())
+  locationId String     @map("location_id")
+  senderType SenderType @map("sender_type")
+  content    String
+  isRead     Boolean    @default(false) @map("is_read")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  location   Location   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([locationId, createdAt])
+  @@map("messages")
+}
+
+enum SenderType {
+  customer
+  admin
+}
