@@ -77,8 +77,13 @@ export class HotelsService {
 
       await queryRunner.commitTransaction();
 
+      // Generate QR page URL (the slug-based public page)
+      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const qr_page_url = `${baseUrl}/hotel/${slug}`;
+
       return {
         hotel: savedHotel,
+        qr_page_url,
         manager: {
           id: savedManager.id,
           hotel_id: savedManager.hotel_id,
@@ -112,6 +117,19 @@ export class HotelsService {
     const hotel = await this.hotelRepo.findOne({ where: { id } });
     if (!hotel) {
       throw new NotFoundException(`Hotel #${id} not found`);
+    }
+    return hotel;
+  }
+
+  /**
+   * Find hotel by slug — used for the public hotel detail page.
+   */
+  async findBySlug(slug: string): Promise<Hotel> {
+    const hotel = await this.hotelRepo.findOne({
+      where: { slug, is_active: true },
+    });
+    if (!hotel) {
+      throw new NotFoundException('Hotel not found or inactive');
     }
     return hotel;
   }

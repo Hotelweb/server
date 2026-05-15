@@ -60,6 +60,21 @@ export class HotelsController {
     return this.hotelsService.findByQrToken(qrToken);
   }
 
+  @Get('slug/:slug')
+  @ApiOperation({
+    summary: 'Find hotel by slug',
+    description: 'Used for the public hotel detail page URL.',
+  })
+  @ApiParam({
+    name: 'slug',
+    description: 'Hotel slug (URL-friendly name)',
+  })
+  @ApiResponse({ status: 200, description: 'Hotel found' })
+  @ApiResponse({ status: 404, description: 'Hotel not found or inactive' })
+  findBySlug(@Param('slug') slug: string) {
+    return this.hotelsService.findBySlug(slug);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get hotel by ID' })
   @ApiParam({ name: 'id', description: 'Hotel ID' })
