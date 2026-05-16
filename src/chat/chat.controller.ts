@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -16,11 +17,16 @@ import {
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service.js';
 import { CreateSessionDto, SendMessageDto } from './dto/create-session.dto.js';
+import { ChatSessionStatus } from './entities/chat.entity.js';
+import { TranslationService } from './translation.service.js';
 
 @ApiTags('chat')
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly translationService: TranslationService,
+  ) {}
 
   @Post('sessions')
   @ApiOperation({ summary: 'Create a new chat session (customer starts chat)' })
@@ -72,10 +78,47 @@ export class ChatController {
     return this.chatService.sendStaffMessage(id, userId, dto);
   }
 
+  @Patch('sessions/:id/status')
+  @ApiOperation({ summary: 'Update session status (active, booked, closed)' })
+  @ApiParam({ name: 'id', description: 'Session ID' })
+  updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { status: ChatSessionStatus },
+  ) {
+    return this.chatService.updateSessionStatus(id, body.status);
+  }
+
+  @Post('sessions/:id/read')
+  @ApiOperation({ summary: 'Mark messages as read' })
+  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiQuery({ name: 'by', enum: ['customer', 'staff'] })
+  markRead(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('by') by: 'customer' | 'staff' = 'staff',
+  ) {
+    return this.chatService.markMessagesRead(id, by);
+  }
+
   @Get('hotel/:hotelId/sessions')
   @ApiOperation({ summary: 'Get all chat sessions for a hotel' })
   @ApiParam({ name: 'hotelId', description: 'Hotel ID' })
   getHotelSessions(@Param('hotelId', ParseIntPipe) hotelId: number) {
     return this.chatService.getHotelSessions(hotelId);
+  }
+
+  @Post('translate')
+  @ApiOperation({
+    summary:
+      'Quick on-demand translation (used for canned responses preview, etc.)',
+  })
+  async translate(
+    @Body() body: { text: string; source: string; target: string },
+  ) {
+    const result = await this.translationService.translate(
+      body.text,
+      body.source,
+      body.target,
+    );
+    return result;
   }
 }
