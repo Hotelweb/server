@@ -61,8 +61,13 @@ export class HotelsController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @RequireScopes('system')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'List all active hotels' })
   @ApiResponse({ status: 200, description: 'List of active hotels' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid token' })
+  @ApiResponse({ status: 403, description: 'Requires system scope' })
   findAll() {
     return this.hotelsService.findAll();
   }
@@ -99,11 +104,22 @@ export class HotelsController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @RequireScopes('system', 'hotel')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get hotel by ID' })
   @ApiParam({ name: 'id', description: 'Hotel ID' })
   @ApiResponse({ status: 200, description: 'Hotel details' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid token' })
+  @ApiResponse({ status: 403, description: 'Cross-hotel access denied' })
   @ApiResponse({ status: 404, description: 'Hotel not found' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    if (user.scope === 'hotel' && user.hotel_id !== id) {
+      throw new ForbiddenException('You can only view your own hotel');
+    }
     return this.hotelsService.findOne(id);
   }
 

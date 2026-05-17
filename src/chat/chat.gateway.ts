@@ -7,13 +7,16 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service.js';
 import { ChatSessionStatus } from './entities/chat.entity.js';
+import { TokenService, type TokenPayload } from '../auth/token.service.js';
+import { assertHotelAccess } from '../auth/hotel-access.js';
 
 interface SocketData {
   role?: 'customer' | 'staff';
+  user?: TokenPayload;
 }
 
 type TypedSocket = Socket<
@@ -33,14 +36,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(ChatGateway.name);
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly tokenService: TokenService,
+  ) {}
 
-  handleConnection(client: Socket) {
+  handleConnection(client: TypedSocket) {
+    const raw = client.handshake.auth?.token;
+    if (typeof raw === 'string' && raw.length > 0) {
+      try {
+        client.data.user = this.tokenService.verify(raw);
+      } catch {
+        this.logger.warn(`Invalid socket token for ${client.id}`);
+      }
+    }
     this.logger.log(`Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  private requireStaff(client: TypedSocket): TokenPayload {
+    const user = client.data.user;
+    if (!user) {
+      throw new UnauthorizedException('Staff authentication required');
+    }
+    return user;
   }
 
   // ---------------------------------------------------------------------------
@@ -70,9 +92,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('joinHotel')
   handleJoinHotel(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: TypedSocket,
     @MessageBody() data: { hotelId: number },
   ) {
+    const user = this.requireStaff(client);
+    assertHotelAccess(user, data.hotelId);
     const room = `hotel_${data.hotelId}`;
     void client.join(room);
     return { event: 'joinedHotel', data: { hotelId: data.hotelId } };
@@ -84,7 +108,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
-    @ConnectedSocket() _client: Socket,
+    @ConnectedSocket() client: TypedSocket,
     @MessageBody()
     data: {
       sessionId: number;
@@ -106,23 +130,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             image_url: data.image_url,
             client_message_id: data.client_message_id,
           })
-        : await this.chatService.sendStaffMessage(
-            data.sessionId,
-            data.sender_user_id ?? 1,
-            {
-              message: data.message,
-              source_language: data.source_language,
-              message_type: data.message_type,
-              image_url: data.image_url,
-              client_message_id: data.client_message_id,
-            },
-          );
+        : await this.sendStaffMessage(client, data);
 
-    // Broadcast to session room
     const room = `session_${data.sessionId}`;
     this.server.to(room).emit('newMessage', savedMessage);
 
-    // Notify hotel room for staff dashboard
     const session = await this.chatService.getSession(data.sessionId);
     this.server.to(`hotel_${session.hotel_id}`).emit('sessionUpdate', {
       sessionId: data.sessionId,
@@ -131,6 +143,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
 
     return { event: 'messageSent', data: savedMessage };
+  }
+
+  private async sendStaffMessage(
+    client: TypedSocket,
+    data: {
+      sessionId: number;
+      message: string;
+      source_language: string;
+      client_message_id?: string;
+      message_type?: 'TEXT' | 'IMAGE';
+      image_url?: string;
+    },
+  ) {
+    const user = this.requireStaff(client);
+    const session = await this.chatService.getSession(data.sessionId);
+    assertHotelAccess(user, Number(session.hotel_id));
+    return this.chatService.sendStaffMessage(data.sessionId, user.sub, {
+      message: data.message,
+      source_language: data.source_language,
+      message_type: data.message_type,
+      image_url: data.image_url,
+      client_message_id: data.client_message_id,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -148,7 +183,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ) {
     const room = `session_${data.sessionId}`;
-    // Broadcast to everyone in the room except the sender
     client.to(room).emit('typing', {
       sessionId: data.sessionId,
       sender_type: data.sender_type,
@@ -162,10 +196,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('markRead')
   async handleMarkRead(
-    @ConnectedSocket() _client: Socket,
+    @ConnectedSocket() client: TypedSocket,
     @MessageBody()
     data: { sessionId: number; by: 'customer' | 'staff' },
   ) {
+    if (data.by === 'staff') {
+      const user = this.requireStaff(client);
+      const session = await this.chatService.getSession(data.sessionId);
+      assertHotelAccess(user, Number(session.hotel_id));
+    }
+
     const result = await this.chatService.markMessagesRead(
       data.sessionId,
       data.by,
@@ -177,7 +217,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       updated: result.updated,
     });
 
-    // Let admin dashboard refresh its sidebar counters too
     const session = await this.chatService.getSession(data.sessionId);
     this.server.to(`hotel_${session.hotel_id}`).emit('sessionUnreadUpdate', {
       sessionId: data.sessionId,
@@ -193,9 +232,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('updateSessionStatus')
   async handleUpdateStatus(
-    @ConnectedSocket() _client: Socket,
+    @ConnectedSocket() client: TypedSocket,
     @MessageBody() data: { sessionId: number; status: ChatSessionStatus },
   ) {
+    const user = this.requireStaff(client);
+    const existing = await this.chatService.getSession(data.sessionId);
+    assertHotelAccess(user, Number(existing.hotel_id));
+
     const session = await this.chatService.updateSessionStatus(
       data.sessionId,
       data.status,
