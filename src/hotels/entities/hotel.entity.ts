@@ -35,6 +35,14 @@ export class Hotel {
   @Column({ type: 'text', nullable: true })
   banner_url: string;
 
+  /**
+   * Optional gallery of additional photos used in the customer detail page.
+   * Stored as a Postgres `text[]` so we don't need a separate join table for
+   * what's effectively an ordered list of Cloudinary URLs.
+   */
+  @Column({ type: 'text', array: true, default: () => "'{}'" })
+  gallery: string[];
+
   @Column({ type: 'uuid', unique: true })
   qr_token: string;
 

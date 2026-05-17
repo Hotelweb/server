@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsUrl,
+} from 'class-validator';
 
 export class UpdateHotelDto {
   @ApiPropertyOptional({ example: 'Grand Palace Hotel' })
@@ -27,15 +34,28 @@ export class UpdateHotelDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/logo.png' })
+  @ApiPropertyOptional({ example: 'https://res.cloudinary.com/.../logo.png' })
   @IsOptional()
   @IsString()
   logo_url?: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/banner.png' })
+  @ApiPropertyOptional({ example: 'https://res.cloudinary.com/.../banner.png' })
   @IsOptional()
   @IsString()
   banner_url?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Gallery of additional intro photos (Cloudinary URLs).',
+    example: [
+      'https://res.cloudinary.com/.../lobby.jpg',
+      'https://res.cloudinary.com/.../pool.jpg',
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUrl({ require_protocol: true }, { each: true })
+  gallery?: string[];
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

@@ -29,6 +29,8 @@ async function bootstrap() {
     .addTag('auth', 'Authentication endpoints')
     .addTag('hotels', 'Hotel management endpoints')
     .addTag('hotel-users', 'Hotel user (staff/manager) management endpoints')
+    .addTag('services', 'Hotel service management endpoints')
+    .addTag('uploads', 'Image upload endpoints (Cloudinary)')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

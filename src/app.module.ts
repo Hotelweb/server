@@ -8,14 +8,21 @@ import { HotelUsersModule } from './hotel-users/hotel-users.module';
 import { ServicesModule } from './services/services.module';
 import { ChatModule } from './chat/chat.module';
 import { AuthModule } from './auth/auth.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // Load `.env.local` first so it overrides anything in `.env`. Mirrors
+      // the convention used by Vite / Next.js — `.env.local` is gitignored
+      // and holds developer-specific secrets (Cloudinary, translation keys,
+      // …) while `.env` keeps shared defaults that are safe to commit.
+      envFilePath: ['.env.local', '.env'],
     }),
     DatabaseModule,
     AuthModule,
+    UploadsModule,
     HotelsModule,
     HotelUsersModule,
     ServicesModule,

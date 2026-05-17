@@ -117,11 +117,20 @@ async function seed() {
         description TEXT,
         logo_url TEXT,
         banner_url TEXT,
+        gallery TEXT[] NOT NULL DEFAULT '{}',
         qr_token UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+
+    // Idempotent: existing databases (created before the gallery column
+    // was introduced) get the new column added in place. Mirrors the
+    // 002_hotel_gallery.sql migration so a fresh `pnpm run seed` is enough.
+    await queryRunner.query(`
+      ALTER TABLE hotels
+        ADD COLUMN IF NOT EXISTS gallery TEXT[] NOT NULL DEFAULT '{}';
     `);
 
     // System Admins
