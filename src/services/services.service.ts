@@ -19,6 +19,7 @@ export interface ServiceView {
   image_url: string | null;
   sort_order: number;
   is_active: boolean;
+  service_type: 'content' | 'food_order';
   title: string;
   description: string;
   language: string;
@@ -97,6 +98,7 @@ export class ServicesService {
         image_url: dto.image_url,
         sort_order: dto.sort_order ?? 0,
         is_active: dto.is_active ?? true,
+        service_type: dto.service_type ?? 'content',
       });
       const saved = await manager.save(service);
 
@@ -128,6 +130,8 @@ export class ServicesService {
       if (dto.image_url !== undefined) existing.image_url = dto.image_url;
       if (dto.sort_order !== undefined) existing.sort_order = dto.sort_order;
       if (dto.is_active !== undefined) existing.is_active = dto.is_active;
+      if (dto.service_type !== undefined)
+        existing.service_type = dto.service_type;
 
       await manager.save(Service, existing);
 
@@ -189,6 +193,7 @@ export class ServicesService {
       image_url: service.image_url ?? null,
       sort_order: service.sort_order,
       is_active: service.is_active,
+      service_type: service.service_type ?? 'content',
       title: translation?.title ?? '',
       description: translation?.description ?? '',
       language: translation?.language ?? '',

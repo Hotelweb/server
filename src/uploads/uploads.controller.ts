@@ -23,7 +23,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CloudinaryService, type UploadResult } from './cloudinary.service.js';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_FOLDERS = new Set(['hotels', 'services', 'misc']);
+const ALLOWED_FOLDERS = new Set(['hotels', 'services', 'menu', 'misc']);
 
 @ApiTags('uploads')
 @ApiBearerAuth()

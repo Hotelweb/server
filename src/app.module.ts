@@ -7,6 +7,7 @@ import { HotelsModule } from './hotels/hotels.module';
 import { HotelUsersModule } from './hotel-users/hotel-users.module';
 import { ServicesModule } from './services/services.module';
 import { ChatModule } from './chat/chat.module';
+import { FoodOrderModule } from './food-order/food-order.module';
 import { AuthModule } from './auth/auth.module';
 import { UploadsModule } from './uploads/uploads.module';
 
@@ -27,6 +28,7 @@ import { UploadsModule } from './uploads/uploads.module';
     HotelUsersModule,
     ServicesModule,
     ChatModule,
+    FoodOrderModule,
   ],
   controllers: [AppController],
   providers: [AppService],

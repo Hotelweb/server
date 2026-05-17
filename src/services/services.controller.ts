@@ -104,6 +104,7 @@ export class ServicesController {
         image_url: service.image_url ?? null,
         sort_order: service.sort_order,
         is_active: service.is_active,
+        service_type: service.service_type ?? 'content',
         translations: service.translations,
         title: service.translations?.[0]?.title ?? '',
         description: service.translations?.[0]?.description ?? '',

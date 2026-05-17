@@ -31,6 +31,14 @@ export class Service {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
+  @Column({
+    type: 'enum',
+    enum: ['content', 'food_order'],
+    enumName: 'service_type',
+    default: 'content',
+  })
+  service_type: 'content' | 'food_order';
+
   @Column({ type: 'timestamptz', nullable: true })
   deleted_at: Date;
 

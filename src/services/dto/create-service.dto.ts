@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
@@ -45,6 +46,15 @@ export class CreateServiceDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['content', 'food_order'],
+    description: 'food_order opens the menu ordering page for guests',
+    default: 'content',
+  })
+  @IsOptional()
+  @IsEnum(['content', 'food_order'])
+  service_type?: 'content' | 'food_order';
 
   @ApiProperty({
     type: [ServiceTranslationDto],
