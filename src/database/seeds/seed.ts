@@ -36,14 +36,7 @@ async function seed() {
 
     await queryRunner.query(`
       DO $$ BEGIN
-        CREATE TYPE hotel_user_role AS ENUM ('HOTEL_ADMIN', 'RECEPTIONIST', 'KITCHEN', 'STAFF');
-      EXCEPTION WHEN duplicate_object THEN NULL;
-      END $$;
-    `);
-
-    await queryRunner.query(`
-      DO $$ BEGIN
-        CREATE TYPE chat_session_status AS ENUM ('OPEN', 'ASSIGNED', 'CLOSED');
+        CREATE TYPE chat_session_status AS ENUM ('OPEN', 'ASSIGNED', 'BOOKED', 'CLOSED');
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$;
     `);
@@ -85,7 +78,24 @@ async function seed() {
 
     await queryRunner.query(`
       DO $$ BEGIN
-        CREATE TYPE language_code AS ENUM ('vi', 'en', 'ja', 'zh', 'ko');
+        CREATE TYPE language_code AS ENUM ('vi', 'en', 'ja', 'zh', 'ko', 'th');
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `);
+
+    // Translation pipeline + message delivery state. Originally introduced
+    // as `001_chat_translation.sql` migration; folded into the seed so a
+    // fresh database boots with a complete schema.
+    await queryRunner.query(`
+      DO $$ BEGIN
+        CREATE TYPE translation_status AS ENUM ('PENDING', 'TRANSLATED', 'FAILED', 'SKIPPED');
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `);
+
+    await queryRunner.query(`
+      DO $$ BEGIN
+        CREATE TYPE message_status AS ENUM ('SENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED');
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$;
     `);
@@ -127,7 +137,8 @@ async function seed() {
       );
     `);
 
-    // Hotel Users
+    // Hotel Users (per-hotel admins). Only one user type lives here:
+    // the hotel admin / manager. There are no other roles.
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS hotel_users (
         id BIGSERIAL PRIMARY KEY,
@@ -135,13 +146,26 @@ async function seed() {
         email VARCHAR(255) NOT NULL,
         password_hash VARCHAR NOT NULL,
         full_name VARCHAR(100) NOT NULL,
-        role hotel_user_role NOT NULL,
         avatar_url TEXT,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         deleted_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+
+    // ----------------------------------------------------------------
+    // Migrate existing hotel_users tables that still carry the old role
+    // column / enum. Idempotent — does nothing on a fresh install.
+    // ----------------------------------------------------------------
+    await queryRunner.query(`
+      DROP INDEX IF EXISTS idx_hotel_users_hotel_role;
+    `);
+    await queryRunner.query(`
+      ALTER TABLE hotel_users DROP COLUMN IF EXISTS role;
+    `);
+    await queryRunner.query(`
+      DROP TYPE IF EXISTS hotel_user_role;
     `);
 
     // Services
@@ -170,7 +194,9 @@ async function seed() {
       );
     `);
 
-    // Customer Sessions
+    // Customer Sessions — chat conversations with a guest. Includes the
+    // booking-flow fields (check-in/out dates, room type, …) so the new
+    // chat_translation pipeline doesn't need a follow-up migration.
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS customer_sessions (
         id BIGSERIAL PRIMARY KEY,
@@ -179,9 +205,17 @@ async function seed() {
         assigned_user_id BIGINT,
         customer_name VARCHAR(100),
         customer_phone VARCHAR(20),
+        customer_email VARCHAR(255),
+        customer_country VARCHAR(80),
         room_number VARCHAR(20),
+        room_type VARCHAR(80),
+        check_in_date DATE,
+        check_out_date DATE,
+        guest_count INT,
+        initial_request TEXT,
         customer_language language_code NOT NULL,
         status chat_session_status NOT NULL DEFAULT 'OPEN',
+        unread_count INT NOT NULL DEFAULT 0,
         last_message_at TIMESTAMPTZ,
         closed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -189,7 +223,7 @@ async function seed() {
       );
     `);
 
-    // Chat Messages
+    // Chat Messages — every utterance, with its translation pipeline state.
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS chat_messages (
         id BIGSERIAL PRIMARY KEY,
@@ -199,10 +233,17 @@ async function seed() {
         sender_user_id BIGINT,
         message_type message_type NOT NULL DEFAULT 'TEXT',
         source_language language_code NOT NULL,
+        target_language language_code,
         original_message TEXT,
         translated_message TEXT,
+        translation_status translation_status NOT NULL DEFAULT 'PENDING',
+        translation_provider VARCHAR(30),
+        translation_duration_ms INT,
         image_url TEXT,
+        status message_status NOT NULL DEFAULT 'SENT',
+        client_message_id VARCHAR(80),
         is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        read_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
@@ -337,7 +378,6 @@ async function seed() {
 
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_hotel_users_hotel_email ON hotel_users (hotel_id, email);
-      CREATE INDEX IF NOT EXISTS idx_hotel_users_hotel_role ON hotel_users (hotel_id, role);
       CREATE INDEX IF NOT EXISTS idx_services_hotel_active_sort ON services (hotel_id, is_active, sort_order);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_service_translations_service_lang ON service_translations (service_id, language);
       CREATE INDEX IF NOT EXISTS idx_customer_sessions_hotel_status_msg ON customer_sessions (hotel_id, status, last_message_at);
@@ -592,17 +632,22 @@ async function seed() {
       [adminEmail, adminPasswordHash, adminName],
     );
 
-    // Hotel Users (password: staff123 - bcrypt hash)
-    await queryRunner.query(`
-      INSERT INTO hotel_users (hotel_id, email, password_hash, full_name, role)
-      VALUES
-        (1, 'manager@grandpalace.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a2dHYz0MgDqI9MXnSi', 'Nguyen Van A', 'HOTEL_ADMIN'),
-        (1, 'reception@grandpalace.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a2dHYz0MgDqI9MXnSi', 'Tran Thi B', 'RECEPTIONIST'),
-        (1, 'kitchen@grandpalace.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a2dHYz0MgDqI9MXnSi', 'Le Van C', 'KITCHEN'),
-        (2, 'manager@seasidedanang.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a2dHYz0MgDqI9MXnSi', 'Pham Thi D', 'HOTEL_ADMIN'),
-        (2, 'staff@seasidedanang.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a2dHYz0MgDqI9MXnSi', 'Hoang Van E', 'STAFF')
-      ON CONFLICT DO NOTHING;
-    `);
+    // Hotel Users — one admin per hotel. The seeded password is `staff123`
+    // (hashed at runtime so we don't ship a stale placeholder hash).
+    //
+    // Note: re-running the seed against an existing database will not delete
+    // legacy non-admin rows that may still be present (receptionist, kitchen,
+    // staff). Drop the rows manually or re-create the database if you want
+    // a clean slate.
+    const hotelAdminPasswordHash = await bcrypt.hash('staff123', 10);
+    await queryRunner.query(
+      `INSERT INTO hotel_users (hotel_id, email, password_hash, full_name)
+       VALUES
+         (1, 'manager@grandpalace.vn',   $1, 'Nguyen Van A'),
+         (2, 'manager@seasidedanang.vn', $1, 'Pham Thi D')
+       ON CONFLICT DO NOTHING;`,
+      [hotelAdminPasswordHash],
+    );
 
     // Services
     await queryRunner.query(`

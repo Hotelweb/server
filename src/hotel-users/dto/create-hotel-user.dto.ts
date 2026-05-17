@@ -1,21 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
-import { HotelUserRole } from '../entities/hotel-user.entity.js';
 
 export class CreateHotelUserDto {
-  @ApiProperty({ example: 1, description: 'Hotel ID this user belongs to' })
+  @ApiProperty({ example: 1, description: 'Hotel ID this admin belongs to' })
   @IsNumber()
   hotel_id: number;
 
-  @ApiProperty({ example: 'staff@hotel.vn' })
+  @ApiProperty({ example: 'admin@hotel.vn' })
   @IsEmail()
   email: string;
 
@@ -28,10 +26,6 @@ export class CreateHotelUserDto {
   @IsString()
   @IsNotEmpty()
   full_name: string;
-
-  @ApiProperty({ enum: HotelUserRole, example: HotelUserRole.HOTEL_ADMIN })
-  @IsEnum(HotelUserRole)
-  role: HotelUserRole;
 
   @ApiPropertyOptional({ example: 'https://example.com/avatar.png' })
   @IsOptional()

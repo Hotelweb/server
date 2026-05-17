@@ -9,13 +9,13 @@ import {
 } from 'typeorm';
 import { Hotel } from '../../hotels/entities/hotel.entity.js';
 
-export enum HotelUserRole {
-  HOTEL_ADMIN = 'HOTEL_ADMIN',
-  RECEPTIONIST = 'RECEPTIONIST',
-  KITCHEN = 'KITCHEN',
-  STAFF = 'STAFF',
-}
-
+/**
+ * A hotel admin – the manager / owner account scoped to a single hotel.
+ *
+ * The system has only two user types: a single root system admin (table
+ * `system_admins`) and per-hotel admins (this table). Every row here
+ * represents an authoritative manager for `hotel_id`.
+ */
 @Entity('hotel_users')
 export class HotelUser {
   @PrimaryGeneratedColumn({ type: 'bigint' })
@@ -32,9 +32,6 @@ export class HotelUser {
 
   @Column({ type: 'varchar', length: 100 })
   full_name: string;
-
-  @Column({ type: 'enum', enum: HotelUserRole })
-  role: HotelUserRole;
 
   @Column({ type: 'text', nullable: true })
   avatar_url: string;

@@ -25,6 +25,8 @@ async function bootstrap() {
     .setTitle('Hotel Management Platform')
     .setDescription('API documentation for the Hotel Management Platform')
     .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('auth', 'Authentication endpoints')
     .addTag('hotels', 'Hotel management endpoints')
     .addTag('hotel-users', 'Hotel user (staff/manager) management endpoints')
     .build();

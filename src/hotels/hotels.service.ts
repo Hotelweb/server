@@ -8,10 +8,7 @@ import { DataSource, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Hotel } from './entities/hotel.entity.js';
-import {
-  HotelUser,
-  HotelUserRole,
-} from '../hotel-users/entities/hotel-user.entity.js';
+import { HotelUser } from '../hotel-users/entities/hotel-user.entity.js';
 import { CreateHotelDto } from './dto/create-hotel.dto.js';
 import { UpdateHotelDto } from './dto/update-hotel.dto.js';
 
@@ -70,7 +67,6 @@ export class HotelsService {
         email: managerEmail,
         password_hash: passwordHash,
         full_name: managerName,
-        role: HotelUserRole.HOTEL_ADMIN,
       });
 
       const savedManager = await queryRunner.manager.save(manager);
@@ -89,7 +85,6 @@ export class HotelsService {
           hotel_id: savedManager.hotel_id,
           email: savedManager.email,
           full_name: savedManager.full_name,
-          role: savedManager.role,
           is_active: savedManager.is_active,
           created_at: savedManager.created_at,
           // Return default password only if it was auto-generated
@@ -182,6 +177,16 @@ export class HotelsService {
     const hotel = await this.findOne(id);
     hotel.qr_token = randomUUID();
     return this.hotelRepo.save(hotel);
+  }
+
+  /**
+   * Soft-delete a hotel by marking it inactive. The record is preserved so
+   * existing chat history and foreign-key references stay intact.
+   */
+  async softDelete(id: number): Promise<void> {
+    const hotel = await this.findOne(id);
+    hotel.is_active = false;
+    await this.hotelRepo.save(hotel);
   }
 
   private generateSlug(name: string): string {

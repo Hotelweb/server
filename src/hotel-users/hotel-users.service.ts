@@ -36,7 +36,6 @@ export class HotelUsersService {
       email: dto.email,
       password_hash: passwordHash,
       full_name: dto.full_name,
-      role: dto.role,
       avatar_url: dto.avatar_url,
     });
 
@@ -88,7 +87,6 @@ export class HotelUsersService {
     }
 
     if (dto.full_name !== undefined) user.full_name = dto.full_name;
-    if (dto.role !== undefined) user.role = dto.role;
     if (dto.avatar_url !== undefined) user.avatar_url = dto.avatar_url;
     if (dto.is_active !== undefined) user.is_active = dto.is_active;
 

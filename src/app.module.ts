@@ -7,6 +7,7 @@ import { HotelsModule } from './hotels/hotels.module';
 import { HotelUsersModule } from './hotel-users/hotel-users.module';
 import { ServicesModule } from './services/services.module';
 import { ChatModule } from './chat/chat.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ChatModule } from './chat/chat.module';
       isGlobal: true,
     }),
     DatabaseModule,
+    AuthModule,
     HotelsModule,
     HotelUsersModule,
     ServicesModule,
