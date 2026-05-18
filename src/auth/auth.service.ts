@@ -17,6 +17,7 @@ export interface AuthenticatedUser {
   full_name: string;
   scope: 'system' | 'hotel';
   hotel_id?: number;
+  avatar_url?: string | null;
   is_active: boolean;
 }
 
@@ -87,6 +88,7 @@ export class AuthService {
       full_name: user.full_name,
       scope: 'hotel',
       hotel_id: Number(user.hotel_id),
+      avatar_url: user.avatar_url,
       is_active: user.is_active,
     };
   }
@@ -149,6 +151,7 @@ export class AuthService {
       full_name: user.full_name,
       scope: 'hotel',
       hotel_id: Number(user.hotel_id),
+      avatar_url: user.avatar_url,
       is_active: user.is_active,
     };
     const access_token = this.tokenService.sign({
