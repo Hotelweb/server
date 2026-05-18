@@ -8,14 +8,25 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        // synchronize is ON by default for first-time scaffolding (matches what
-        // the seed script expects). Once the schema exists and stabilizes,
-        // set DB_SYNCHRONIZE=false in .env and rely on the migration runner
-        // (`pnpm run migrate`) for any changes — TypeORM's automatic enum
-        // migrations are unsafe (drop-type cascades fail on dependent columns).
         const synchronize =
           configService.get<string>('DB_SYNCHRONIZE', 'true').toLowerCase() !==
           'false';
+
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+
+        // If DATABASE_URL is provided (e.g. on Vercel with Render Postgres),
+        // use it directly. Otherwise fall back to individual DB_* vars.
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+            synchronize,
+            ssl: {
+              rejectUnauthorized: false,
+            },
+          };
+        }
 
         return {
           type: 'postgres',
